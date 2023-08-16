@@ -66,17 +66,33 @@ private slots:
 	void on_MainWindowTimer();
 	void on_newVideoSegment(VideoStatus *st);
 
-	void on_chkFocusAid_clicked(bool focusAidEnabled);
+	void on_cmdBattery_toggled();
+
+	void on_cmdExposure_toggled(bool checked);
+	void on_cmdGainAnalog_toggled(bool checked);
+	void on_cmdGainDigital_toggled(bool checked);
+
+	void on_cmdGuides_toggled(bool checked);
+
+	void on_cmdToggleUI_toggled(bool checked);
+
+	void on_cmdFocusAid_clicked(bool focusAidEnabled);
+
+	void on_cmdZebras_clicked(bool zebrasEnabled);
+
+	void on_cmdZoom_clicked();
+
+	void PlaybackWindow_closed();
 
 	void UtilWindow_closed();
 
 	void on_expSlider_valueChanged(int shutterAngle);
+	
+    void sendAndForget(char* param, int value);
 
 	void recSettingsClosed();
 
 	void on_cmdUtil_clicked();
-
-	void on_cmdBkGndButton_clicked();
 
 	void on_cmdDPCButton_clicked();
 
@@ -91,9 +107,11 @@ private slots:
 	void on_exposureMin_valueChanged(const QVariant &value);
 	void on_focusPeakingLevel_valueChanged(const QVariant &value);
 	void on_wbTemperature_valueChanged(const QVariant &value);
+	void on_videoZoom_valueChanged(const QVariant &value);
     void on_rsResolution_valueChanged(const QVariant &value);
 
 	void buttonsEnabled(bool en);
+	void toggleUI(bool en);
     void checkForCalibration(void);
     void checkForNfsStorage(void);
     void checkForSmbStorage(void);
@@ -106,6 +124,7 @@ private:
 	void updateCurrentSettingsLabel(void);
 	void updateExpSliderLimits(void);
 	void updateBatteryData();
+	void updateSensorTemperature();
 	bool okToStopLive();
 	QMessageBox::StandardButton question(const QString &title, const QString &text, QMessageBox::StandardButtons = QMessageBox::Yes|QMessageBox::No);
 
@@ -123,6 +142,12 @@ private:
 	double batteryVoltage;
 	bool batteryPresent;
 	bool externalPower;
+
+	double videoZoom = 1.0;
+	bool requestedGuides = false;
+	int requestedGainAnalog;
+	double requestedGainDigital;
+	int calibrationTemp = 0;
 
 	bool autoSaveActive;
 

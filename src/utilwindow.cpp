@@ -378,7 +378,7 @@ bool copyFile(const char * fromfile, const char * tofile)
 
 	errno = 0;
 	if ((fromfd = open(fromfile, O_RDONLY)) < 0 ||
-		(tofd = open(tofile, O_WRONLY | O_CREAT)) < 0) {
+        (tofd = open(tofile, O_WRONLY | O_CREAT, 0600)) < 0) {
 		perror("open");
 		return false;
 	}

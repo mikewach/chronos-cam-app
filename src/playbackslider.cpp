@@ -21,19 +21,18 @@
 #include <QDebug>
 
 #define HANDLE_HEIGHT 60
+#define HANDLE_WIDTH 72
 
 PlaybackSlider::PlaybackSlider(QWidget *parent) :
 	QSlider(parent)
 {
 	colorArray[0] = QColor("red");
-	colorArray[1] = QColor("green");
-	colorArray[2] = QColor("blue");
-	colorArray[3] = QColor("black");
-	colorArray[4] = QColor("magenta");
-	colorArray[5] = QColor("darkRed");
-	colorArray[6] = QColor("darkCyan");
-	colorArray[7] = QColor("darkMagenta");
-	colorArray[8] = QColor("darkGray");
+	colorArray[1] = QColor("cyan");
+	colorArray[2] = QColor("magenta");
+	colorArray[3] = QColor("blue");
+	colorArray[4] = QColor("yellow");
+	colorArray[5] = QColor("green");
+	colorArray[6] = QColor("white");
 }
 
 PlaybackSlider::~PlaybackSlider()
@@ -64,35 +63,42 @@ void PlaybackSlider::paintEvent(QPaintEvent *ev) {
 	QRect groove_rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderGroove, this);
 
 	//Reverse the bar if the slider is set to reverse direction
-	if(!QSlider::invertedAppearance())//slider is not inverted, and position 0 is at top of screen
-	{
-		start = (groove_rect.height() - HANDLE_HEIGHT) * (double)(QSlider::maximum() - highlightRegionEndFrame) / QSlider::maximum();
-		end = (groove_rect.height() - HANDLE_HEIGHT) * (double)(QSlider::maximum() - highlightRegionStartFrame) / QSlider::maximum();
+	// if(!QSlider::invertedAppearance())//slider is not inverted, and position 0 is at top of screen
+	// {
+		start = (778 - HANDLE_WIDTH) * ((double)highlightRegionStartFrame / QSlider::maximum());
+		end = (778 - HANDLE_WIDTH) * ((double)highlightRegionEndFrame / QSlider::maximum());
+		// start = (groove_rect.height() - HANDLE_HEIGHT) * (double)(QSlider::maximum() - highlightRegionEndFrame) / QSlider::maximum();
+		// end = (groove_rect.height() - HANDLE_HEIGHT) * (double)(QSlider::maximum() - highlightRegionStartFrame) / QSlider::maximum();
 		//Subtract the handle height because the start or end region should line up with the middle of the handle,
 		//and the middle if the handle cannot be moved to the very top or bottom of the screen
-	}
-	else
-	{
-		start = (groove_rect.height() - HANDLE_HEIGHT) * (double)highlightRegionStartFrame / QSlider::maximum();
-		end = (groove_rect.height() - HANDLE_HEIGHT) * (double)highlightRegionEndFrame / QSlider::maximum();
-	}
+	// }
+	// else
+	// {
+	// 	start = (groove_rect.height() - HANDLE_HEIGHT) * (double)highlightRegionStartFrame / QSlider::maximum();
+	// 	end = (groove_rect.height() - HANDLE_HEIGHT) * (double)highlightRegionEndFrame / QSlider::maximum();
+	// }
 
 
 
 	//specify (left, top, width, height) of the rectangle to highlight
-	newSaveRegion.setRect(groove_rect.left() + groove_rect.width(),
-						  HANDLE_HEIGHT/2 + end,
-						  groove_rect.width() + 2, //+ 2 pixels so the highlight will actually be visible instead of just covered up by the slider bar
-						  start - end);
+	newSaveRegion.setRect(start + (HANDLE_WIDTH / 2) + 1,
+						  groove_rect.top() + 56,
+						  end - start,
+						  14);
+	// newSaveRegion.setRect(groove_rect.left() + groove_rect.width(),
+	// 					  HANDLE_HEIGHT/2 + end,
+	// 					  groove_rect.width() + 2, //+ 2 pixels so the highlight will actually be visible instead of just covered up by the slider bar
+	// 					  start - end);
 	QPainter painter(this);
+	painter.setOpacity(0.5);
 
 	currentColorIndex = 0;
 	foreach (QRect regionInList, previouslySavedRegions) {
-		painter.fillRect(regionInList, QBrush(*(colorArray + (currentColorIndex % 9))));
+		painter.fillRect(regionInList, QBrush(*(colorArray + (currentColorIndex % 7))));
 		currentColorIndex++;
 	}
 
-	painter.fillRect(newSaveRegion, QBrush(*(colorArray + (currentColorIndex % 9))));
+	painter.fillRect(newSaveRegion, QBrush(*(colorArray + (currentColorIndex % 7))));
 }
 
 void PlaybackSlider::appendRegionToList(){

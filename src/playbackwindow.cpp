@@ -44,17 +44,30 @@ playbackWindow::playbackWindow(QWidget *parent, Camera * cameraInst, bool autosa
 	VideoStatus vStatus;
 	ui->setupUi(this);
 	this->setWindowFlags(Qt::Dialog /*| Qt::WindowStaysOnTopHint*/ | Qt::FramelessWindowHint);
+	
+	ui->lblSave->setVisible(false);
+	ui->progressBar->setVisible(false);
+	ui->lblSave->setText("Processing");
+	ui->progressBar->setValue(0);
+	ui->guides->setVisible(false);
 
 	camera = cameraInst;
 
 	autoSaveFlag = autosave;
 	autoRecordFlag = camera->get_autoRecord();
-	this->move(camera->ButtonsOnLeft? 0:600, 0);
+	// this->move(camera->ButtonsOnLeft? 0:600, 0);
 	saveDoneTimer = NULL;
 	saveAborted = false;
 	saveAbortedAutomatically = false;
 	
 	camera->vinst->getStatus(&vStatus);
+
+	camera->cinst->getImagerSettings(&is);
+	gainDigital = is.digitalGain;
+	on_digitalGain_valueChanged(gainDigital);
+	camera->cinst->listen("digitalGain", this, SLOT(on_digitalGain_valueChanged(const QVariant &)));
+	on_videoZoom_valueChanged(camera->vinst->videoZoom);
+	camera->cinst->listen("videoZoom", this, SLOT(on_videoZoom_valueChanged(const QVariant &)));
 
 	/* Configure the overlay. */
 	camera->cinst->setString("overlayFormat", "%.6h/%.6z Sg=%g/%i T=%.8Ss");
@@ -89,7 +102,12 @@ playbackWindow::playbackWindow(QWidget *parent, Camera * cameraInst, bool autosa
     connect(timer, SIGNAL(timeout()), this, SLOT(updatePlayFrame()));
     timer->start(200);
 
+    timerStats = new QTimer(this);
+    connect(timerStats, SIGNAL(timeout()), this, SLOT(updateStats()));
+    timerStats->start(10000);
+
 	updateStatusText();
+	updateStats();
 
 	settingsWindowIsOpen = false;
 
@@ -100,9 +118,6 @@ playbackWindow::playbackWindow(QWidget *parent, Camera * cameraInst, bool autosa
 	} else {
 		strcpy(camera->cinst->filename, appSettings.value("recorder/filename", "").toString().toAscii());
 	}
-
-    ui->lblFrame->setText("Current Frame");
-	
 }
 
 playbackWindow::~playbackWindow()
@@ -110,6 +125,7 @@ playbackWindow::~playbackWindow()
 	qDebug()<<"playbackwindow deconstructor";
 	camera->setPlayMode(false);
 	timer->stop();
+	timerStats->stop();
 	emit finishedSaving();
 	delete sw;
 	delete ui;
@@ -117,12 +133,23 @@ playbackWindow::~playbackWindow()
 
 void playbackWindow::videoStarted(VideoState state)
 {
+	char strCancelIcon[48];
+	sprintf(strCancelIcon, ":/qss/assets/images/cancel.png");
+	QPixmap pixmapCancel(strCancelIcon);
+	QIcon ButtonIconCancel(pixmapCancel);
+
+	char strRecordIcon[48];
+	sprintf(strRecordIcon, ":/qss/assets/images/record.png");
+	QPixmap pixmapRecord(strRecordIcon);
+	QIcon ButtonIconRecord(pixmapRecord);
+
 	/* When starting a filesave, increase the frame timing for maximum speed */
 	if (state == VIDEO_STATE_FILESAVE) {
 		camera->recordingData.hasBeenSaved = true;
 		//TODO turn off sensor
 
-		ui->cmdSave->setText("Abort\nSave");
+		ui->cmdSave->setIcon(ButtonIconCancel);
+		ui->cmdSave->setChecked(true);
 
         //saveDoneTimer = new QTimer(this);
         //connect(saveDoneTimer, SIGNAL(timeout()), this, SLOT(checkForSaveDone()));
@@ -133,10 +160,14 @@ void playbackWindow::videoStarted(VideoState state)
 		 * as that can make the camera try to save a 2nd video too soon, crashing the camapp.
 		 * It is also disabled in checkForSaveDone(), but if the video is very short,
 		 * that might not be called at all before the end of the video, so just disable the button right away.*/
-		if(markOutFrame - markInFrame < 25 || (markOutFrame - markInFrame < 230 && getSaveFormat() == SAVE_MODE_H264)) ui->cmdSave->setEnabled(false);
-		else ui->cmdSave->setEnabled(true);
+		if(markOutFrame - markInFrame < 25 || (markOutFrame - markInFrame < 230 && getSaveFormat() == SAVE_MODE_H264)) {
+			ui->cmdSave->setEnabled(false);
+		} else {
+			ui->cmdSave->setEnabled(true);
+		}
 	} else {
-		ui->cmdSave->setText("Save");
+
+		ui->cmdSave->setChecked(false);
 		ui->cmdSave->setEnabled(true);
 		setControlEnable(true);
 		emit enableSaveSettingsButtons(true);
@@ -153,10 +184,17 @@ void playbackWindow::videoEnded(VideoState state, QString err)
 		//TODO turn on sensor
 
 		sw->close();
+		ui->lblSave->setVisible(false);
+		ui->progressBar->setVisible(false);
 		
 		if(saveAbortedAutomatically)
 			QMessageBox::warning(this, "Warning - Insufficient free space", "Save aborted due to insufficient free space.");
-		ui->cmdSave->setText("Save");
+		char strRecordIcon[48];
+		sprintf(strRecordIcon, ":/qss/assets/images/record.png");
+		QPixmap pixmapRecord(strRecordIcon);
+		QIcon ButtonIconRecord(pixmapRecord);
+		ui->cmdSave->setIcon(ButtonIconRecord);
+		ui->cmdSave->setChecked(false);
 		saveAborted = false;
 		autoSaveFlag = false;
 		
@@ -374,6 +412,16 @@ void playbackWindow::on_cmdSave_clicked()
 					return;
 				}
 			}
+			else if (RECORD_ERROR == ret) {
+				if(autoSaveFlag) {
+					strncpy(camera->cinst->fileFolder, "\0", 1);
+					ret = camera->cinst->saveRecording(markInFrame - 1, markOutFrame - markInFrame + 1, format, camera->vinst->framerate, realBitrate);
+				} else {
+					msg.setText("Record Error");
+					msg.exec();
+					return;
+				}
+			}
 			else if (RECORD_INSUFFICIENT_SPACE == ret) {
 				msg.setText("Selected device does not have sufficient free space.");
 				msg.exec();
@@ -382,8 +430,12 @@ void playbackWindow::on_cmdSave_clicked()
 
 			ui->cmdSave->setEnabled(false);
 			setControlEnable(false);
-			sw->setText(" Saving... ");
-			sw->show();
+			// sw->setText(" Saving... ");
+			// sw->show();
+			ui->lblSave->setText("<p>Preparing to Save</p>");
+			ui->progressBar->setValue(0);
+			ui->lblSave->setVisible(true);
+			ui->progressBar->setVisible(true);
 
 			ui->verticalSlider->appendRegionToList();
 			ui->verticalSlider->setHighlightRegion(markOutFrame, markOutFrame);
@@ -406,6 +458,29 @@ void playbackWindow::on_cmdSave_clicked()
 		ui->verticalSlider->setHighlightRegion(markInFrame, markOutFrame);
 		saveAborted = true;
 		autoRecordFlag = false;
+	}
+}
+
+void playbackWindow::on_cmdGainDigital_toggled(bool checked)
+{
+	if (checked) {
+		ui->cmdFrameRate->setChecked(false);
+	} else {
+		ui->verticalSlider->setFocus(Qt::OtherFocusReason);
+	}
+	char strGainDigitalIcon[48];
+	sprintf(strGainDigitalIcon, ":/qss/assets/images/gain-digital-%s.png", checked ? "checked" : "unchecked");
+	QPixmap pixmapGainDigital(strGainDigitalIcon);
+	QIcon ButtonIconGainDigital(pixmapGainDigital);
+	ui->cmdGainDigital->setIcon(ButtonIconGainDigital);
+}
+
+void playbackWindow::on_cmdFrameRate_toggled(bool checked)
+{
+	if (checked) {
+		ui->cmdGainDigital->setChecked(false);
+	} else {
+		ui->verticalSlider->setFocus(Qt::OtherFocusReason);
 	}
 }
 
@@ -462,52 +537,103 @@ void playbackWindow::on_cmdMarkOut_clicked()
 
 void playbackWindow::keyPressEvent(QKeyEvent *ev)
 {
-	unsigned int skip = 10;
-	if (playbackExponent > 0) {
-		skip <<= playbackExponent;
-	}
+	if(ui->cmdFrameRate->isChecked()) {
+		switch (ev->key()) {
+			case Qt::Key_Up:
+				if(playbackExponent < 5)
+					playbackExponent++;
+				break;
 
-	switch (ev->key()) {
-	case Qt::Key_Up:
-		camera->vinst->seekFrame(1);
-		break;
+			case Qt::Key_Down:
+				if(playbackExponent > -5)
+					playbackExponent--;
+				break;
 
-	case Qt::Key_Down:
-		camera->vinst->seekFrame(-1);
-		break;
+			case Qt::Key_PageUp:
+				if(playbackExponent < 5)
+					playbackExponent++;
+				break;
 
-	case Qt::Key_PageUp:
-		camera->vinst->seekFrame(skip);
-		break;
+			case Qt::Key_PageDown:
+				if(playbackExponent > -5)
+					playbackExponent--;
+				break;
+		}
+		int fps = (playbackExponent >= 0) ? (60 << playbackExponent) : 60 / (1 - playbackExponent);
+		if(ui->cmdLoop->isChecked()) {
+			camera->vinst->setFrameRate(fps);
+		}
+	} else if(ui->cmdGainDigital->isChecked()) {
+		switch (ev->key())
+		{
+			case Qt::Key_Up:
+			case Qt::Key_PageUp:
+				if (gainDigital <= 16)
+				{
+					gainDigital+=0.1;
+				}
+				break;
+			case Qt::Key_Down:
+			case Qt::Key_PageDown:
+				if (gainDigital > 1)
+				{
+					gainDigital-=0.1;
+				}
+				break;
+		}
+		camera->cinst->setProperty("digitalGain", gainDigital);
+	} else {
+		unsigned int skip = 10;
+		if (playbackExponent > 0) {
+			skip <<= playbackExponent;
+		}
 
-	case Qt::Key_PageDown:
-		camera->vinst->seekFrame(-skip);
-		break;
+		switch (ev->key()) {
+		case Qt::Key_Up:
+			camera->vinst->seekFrame(1);
+			break;
+
+		case Qt::Key_Down:
+			camera->vinst->seekFrame(-1);
+			break;
+
+		case Qt::Key_PageUp:
+			camera->vinst->seekFrame(skip);
+			break;
+
+		case Qt::Key_PageDown:
+			camera->vinst->seekFrame(-skip);
+			break;
+		}
 	}
 }
 
 void playbackWindow::updateStatusText()
 {
-	char text[100];
-    sprintf(text, "Mark start %d\r\nMark end %d", markInFrame, markOutFrame);
-    //sprintf(text, "Frame %d/%d\r\nMark start %d\r\nMark end %d", playFrame + 1, totalFrames, markInFrame, markOutFrame);
-	ui->lblInfo->setText(text);
+	// char text[100];
+    // sprintf(text, "Mark start %d\r\nMark end %d", markInFrame, markOutFrame);
+    // //sprintf(text, "Frame %d/%d\r\nMark start %d\r\nMark end %d", playFrame + 1, totalFrames, markInFrame, markOutFrame);
+	// ui->lblInfo->setText(text);
+    ui->cmdMarkIn->setText(QString::number(markInFrame));
+    ui->cmdMarkOut->setText(QString::number(markOutFrame));
 
-    char frame[30];
-    sprintf(frame, "  %d/%d", playFrame + 1, totalFrames);
-    ui->lblCurrentFrame->setText(frame);
+    // char frame[30];
+    // sprintf(frame, "  %d/%d", playFrame + 1, totalFrames);
+    ui->cmdCurrentFrame->setText(QString::number(playFrame));
+    ui->cmdTotalFrames->setText(QString::number(totalFrames));
 }
 
 void playbackWindow::updateSWText(){
 	QString statusWindowText;
 	if (!saveAborted) {
-		statusWindowText = QString(" Saving ");
+        int percent = int(float(playFrame) / float(markOutFrame) * 100);
+		statusWindowText = QString("<p>Saving</p><p>%1%</p>").arg(percent);
 	} else if (saveAbortedAutomatically) {
 		statusWindowText = QString(" Storage is now full; Aborting ");
 	} else {
 		statusWindowText = QString(" Aborting Save ");
 	}
-	addDotsToString(&statusWindowText);
+	// addDotsToString(&statusWindowText);
 	sw->setText(statusWindowText);
 }
 
@@ -548,7 +674,24 @@ void playbackWindow::updatePlayFrame()
             on_cmdSave_clicked();
         }
 
-        updateSWText();
+        // updateSWText();
+		QString saveText;
+		if (!saveAborted) {
+			if (playFrame < markOutFrame && st.framerate < 25000) {
+				int percent = int(float(playFrame - markInFrame) / float(markOutFrame - markInFrame) * 100);
+				int eta = int(float(markOutFrame - playFrame) / float(st.framerate));
+				saveText = QString("<p>Saving @%1 fps<br>ETA: %2 seconds<br>Frame %3 of %4</p>").arg(int(st.framerate)).arg(eta).arg(playFrame).arg(markOutFrame);
+				ui->progressBar->setValue(percent);
+			} else {
+				saveText = QString("Processing");
+			}
+			ui->cmdSaveSettings->setText(QString("%1gb Available").arg(int(double(statvfsBuf.f_bsize * (uint64_t)statvfsBuf.f_bfree) / 1073741824.0)));
+		} else if (saveAbortedAutomatically) {
+			saveText = QString("Storage is now full; Aborting");
+		} else {
+			saveText = QString("Aborting Save");
+		}
+		ui->lblSave->setText(saveText);
     }
     else
     {
@@ -563,9 +706,9 @@ void playbackWindow::updatePlayFrame()
     /* Update the framerate. */
 	if (st.state != VIDEO_STATE_FILESAVE) {
 		st.framerate = (playbackExponent >= 0) ? (60 << playbackExponent) : 60.0 / (1 - playbackExponent);
+		sprintf(playRateStr, "%.0f fps", st.framerate);
+		ui->cmdFrameRate->setText(playRateStr);
 	}
-	sprintf(playRateStr, "%.1ffps", st.framerate);
-    ui->lblFrameRate->setText(playRateStr);
 }
 
 //Once save is done, re-enable the window
@@ -605,18 +748,6 @@ void playbackWindow::checkForSaveDone()
 	}
 }
 
-void playbackWindow::on_cmdRateUp_clicked()
-{
-	if(playbackExponent < 5)
-		playbackExponent++;
-}
-
-void playbackWindow::on_cmdRateDn_clicked()
-{
-	if(playbackExponent > -5)
-		playbackExponent--;
-}
-
 void playbackWindow::setControlEnable(bool en)
 {
 	//While settings window is open, don't let the user
@@ -629,8 +760,7 @@ void playbackWindow::setControlEnable(bool en)
 	ui->cmdMarkOut->setEnabled(en);
 	ui->cmdPlayForward->setEnabled(en);
 	ui->cmdPlayReverse->setEnabled(en);
-	ui->cmdRateDn->setEnabled(en);
-	ui->cmdRateUp->setEnabled(en);
+	ui->cmdFrameRate->setEnabled(en);
 	ui->cmdLoop->setEnabled(en);
 	ui->verticalSlider->setEnabled(en);
 }
@@ -638,7 +768,12 @@ void playbackWindow::setControlEnable(bool en)
 void playbackWindow::stopPlayLoop(void)
 {
 	playLoop = false;
-	ui->cmdLoop->setText("Play");
+	ui->cmdLoop->setChecked(false);
+	char strPlayIcon[48];
+	sprintf(strPlayIcon, ":/qss/assets/images/play.png");
+	QPixmap pixmapPlay(strPlayIcon);
+	QIcon ButtonIconPlay(pixmapPlay);
+	ui->cmdLoop->setIcon(ButtonIconPlay);
 }
 
 void playbackWindow::on_cmdClose_clicked()
@@ -672,7 +807,217 @@ void playbackWindow::on_cmdLoop_clicked()
 		int fps = (playbackExponent >= 0) ? (60 << playbackExponent) : 60 / (1 - playbackExponent);
 		unsigned int count = (markOutFrame - markInFrame + 1);
 		playLoop = true;
-		ui->cmdLoop->setText("Stop");
+		ui->cmdLoop->setChecked(true);
+		char strStopIcon[48];
+		sprintf(strStopIcon, ":/qss/assets/images/stop.png");
+		QPixmap pixmapStop(strStopIcon);
+		QIcon ButtonIconStop(pixmapStop);
+		ui->cmdLoop->setIcon(ButtonIconStop);
 		camera->vinst->loopPlayback(markInFrame - 1, count, fps);
 	}
+}
+
+void playbackWindow::on_cmdBattery_toggled()
+{
+	updateBatteryData();
+}
+
+void playbackWindow::updateStats()
+{
+	updateBatteryData();
+	updateSensorTemperature();
+}
+
+void playbackWindow::updateBatteryData()
+{
+	QStringList names = {
+		"externalPower",
+		"batteryPresent",
+		"batteryVoltage",
+		"batteryChargePercent"};
+    QVariantMap battData = camera->cinst->getPropertyGroup(names);
+
+	if (!battData.isEmpty())
+	{
+		externalPower = battData["externalPower"].toBool();
+		batteryPresent = battData["batteryPresent"].toBool();
+		batteryVoltage = battData["batteryVoltage"].toDouble();
+		batteryPercent = battData["batteryChargePercent"].toDouble();
+	}
+
+	char strBattery[10];
+	char strIconBattery[40];
+	if (batteryPresent)
+	{
+		if (ui->cmdBattery->isChecked())
+		{
+			sprintf(strBattery, "%.2fv", batteryVoltage);
+			ui->cmdBattery->setText(strBattery);
+		}
+		else
+		{
+			sprintf(strBattery, "%.0f%%", batteryPercent);
+			ui->cmdBattery->setText(strBattery);
+		}
+		if (externalPower)
+		{
+			if (batteryPercent >= 90)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-100-charging.png");
+			}
+			if (batteryPercent < 90 && batteryPercent > 75)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-75-charging.png");
+			}
+			if (batteryPercent < 75 && batteryPercent > 50)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-50-charging.png");
+			}
+			if (batteryPercent < 50 && batteryPercent > 25)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-25-charging.png");
+			}
+			if (batteryPercent <= 25)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-0-charging.png");
+			}
+		}
+		else
+		{
+			if (batteryPercent >= 90)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-100.png");
+			}
+			if (batteryPercent < 90 && batteryPercent > 75)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-75.png");
+			}
+			if (batteryPercent < 75 && batteryPercent > 50)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-50.png");
+			}
+			if (batteryPercent < 50 && batteryPercent > 25)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-25.png");
+			}
+			if (batteryPercent <= 25)
+			{
+				sprintf(strIconBattery, ":/qss/assets/images/battery-0.png");
+			}
+		}
+	}
+	else
+	{
+		sprintf(strBattery, "%s", "A/C");
+		ui->cmdBattery->setText(strBattery);
+		sprintf(strIconBattery, ":/qss/assets/images/battery-missing.png");
+	}
+	QPixmap pixmap(strIconBattery);
+	QIcon ButtonIcon(pixmap);
+	ui->cmdBattery->setIcon(ButtonIcon);
+}
+
+void playbackWindow::updateSensorTemperature()
+{
+	int sensorTemp = camera->cinst->getProperty("sensorTemperature", 0.0).toInt();
+	char strTemperature[10];
+	sprintf(strTemperature, "%u\xb0", sensorTemp);
+	ui->cmdTemperature->setText(strTemperature);
+
+	char strIcon[10];
+	if (sensorTemp > 49)
+	{
+		sprintf(strIcon, ":/qss/assets/images/temperature-%s.png", "hot");
+	}
+	else if (sensorTemp < 44)
+	{
+		sprintf(strIcon, ":/qss/assets/images/temperature-%s.png", "cold");
+	}
+	else
+	{
+		sprintf(strIcon, ":/qss/assets/images/temperature-%s.png", "normal");
+	}
+	QPixmap pixmap(strIcon);
+	QIcon ButtonIcon(pixmap);
+	ui->cmdTemperature->setIcon(ButtonIcon);
+}
+
+void playbackWindow::on_digitalGain_valueChanged(const QVariant &value) 
+{
+	char strGainDigital[10];
+	sprintf(strGainDigital, "x%.1f", value.toDouble());
+	ui->cmdGainDigital->setText(strGainDigital);
+}
+
+
+void playbackWindow::on_cmdGuides_toggled(bool checked)
+{
+	ui->guides->setVisible(checked);
+}
+
+void playbackWindow::on_cmdToggleUI_toggled(bool checked)
+{
+	toggleUI(checked);
+}
+
+void playbackWindow::toggleUI(bool en)
+{
+	// bottom
+	ui->cmdBattery->setVisible(en);
+	ui->cmdClose->setVisible(en);
+	ui->cmdFrameRate->setVisible(en);
+	ui->cmdGainDigital->setVisible(en);
+	ui->cmdSaveSettings->setVisible(en);
+	ui->cmdTemperature->setVisible(en);
+	ui->cmdTotalFrames->setVisible(en);
+	// top
+	ui->cmdCurrentFrame->setVisible(en);
+	ui->cmdGuides->setVisible(en);
+	ui->cmdLoop->setVisible(en);
+	ui->cmdMarkIn->setVisible(en);
+	ui->cmdMarkOut->setVisible(en);
+	ui->cmdPlayForward->setVisible(en);
+	ui->cmdPlayReverse->setVisible(en);
+	ui->cmdSave->setVisible(en);
+	ui->cmdZoom->setVisible(en);
+	ui->verticalSlider->setVisible(en);
+
+	if (!en)
+	{
+		ui->cmdGainDigital->setChecked(false);
+		// ui->cmdFrameRate->setChecked(false);
+	}
+
+	// QCoreApplication::processEvents();
+}
+
+void playbackWindow::on_videoZoom_valueChanged(const QVariant &value)
+{
+	videoZoom = value.toDouble();
+	char strZoom[10];
+	sprintf(strZoom, "%.1fx", videoZoom);
+	ui->cmdZoom->setText(strZoom);
+	ui->cmdZoom->setChecked(videoZoom > 1.0);
+	ui->cmdZoom->setEnabled(true);
+}
+
+void playbackWindow::on_cmdZoom_clicked()
+{
+	ui->cmdZoom->setEnabled(false);
+	double hScale = is.geometry.hRes / 800.0;
+	double vScale = is.geometry.vRes / 480.0;
+	double oneToOne = hScale < vScale ? hScale : vScale;
+	if (videoZoom == 1)
+	{
+		videoZoom = oneToOne;
+	}
+	else if (videoZoom == oneToOne)
+	{
+		videoZoom = oneToOne * 2.0;
+	}
+	else
+	{
+		videoZoom = 1;
+	}
+	camera->vinst->setZoom(videoZoom);
 }

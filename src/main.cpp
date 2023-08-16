@@ -151,30 +151,31 @@ int main(int argc, char *argv[])
 
 	CamMainWindow w;
 	w.setWindowFlags(Qt::FramelessWindowHint);
+    w.setAttribute(Qt::WA_TranslucentBackground);
 
 	QSettings appSettings;
-	int displayPosition = (appSettings.value("camera/ButtonsOnLeft", false)).toBool() ? 0 : 600;
+	// int displayPosition = (appSettings.value("camera/ButtonsOnLeft", false)).toBool() ? 0 : 600;
     int gui = appSettings.value("camera/guiMode", 1).toInt();
 
-	w.move(displayPosition,0);
+	// w.move(displayPosition,0);
 
     //Set Stylesheet
-    if(gui == 1)
-    {
+    //if(gui == 1)
+    //{
         QFile styleFile(":/qss/darkstylesheet.qss");
         styleFile.open(QFile::ReadOnly);
 
         QString style(styleFile.readAll());
         a.setStyleSheet(style);
-    }
-    else
-    {
-        QFile styleFile(":/qss/lightstylesheet.qss");
-        styleFile.open(QFile::ReadOnly);
+    //}
+    // else
+    // {
+    //     QFile styleFile(":/qss/lightstylesheet.qss");
+    //     styleFile.open(QFile::ReadOnly);
 
-        QString style(styleFile.readAll());
-        a.setStyleSheet(style);
-    }
+    //     QString style(styleFile.readAll());
+    //     a.setStyleSheet(style);
+    // }
 
 //	MainWindow w (CamMainWindow);
     w.show();

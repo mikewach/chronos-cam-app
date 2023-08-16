@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <QDebug>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QFont>
 #include <QTime>
 #include <memory.h>
@@ -170,6 +169,23 @@ void Video::loopPlayback(unsigned int start, unsigned int length, int rate)
 	}
 }
 
+void Video::setFrameRate(int rate)
+{
+	QVariantMap args;
+	QDBusPendingReply<QVariantMap> reply;
+	args.insert("framerate", QVariant(rate));
+
+	pthread_mutex_lock(&mutex);
+	reply = iface.playback(args);
+	reply.waitForFinished();
+	pthread_mutex_unlock(&mutex);
+
+	if (reply.isError()) {
+		QDBusError err = reply.error();
+		fprintf(stderr, "Failed to change framerate: %s - %s\n", err.name().data(), err.message().toAscii().data());
+	}
+}
+
 void Video::setDisplayOptions(bool zebra, FocusPeakColors fpColor)
 {
 	QVariantMap args;
@@ -211,11 +227,14 @@ void Video::setZoom(double zoom)
 
 	pthread_mutex_lock(&mutex);
 	reply = iface.set(args);
+	reply.waitForFinished();
 	pthread_mutex_unlock(&mutex);
 
 	if (reply.isError()) {
 		QDBusError err = reply.error();
 		fprintf(stderr, "Failed to configure video zoom: %s - %s\n", err.name().data(), err.message().toAscii().data());
+	} else {
+		videoZoom = zoom;
 	}
 }
 
@@ -373,7 +392,7 @@ CameraErrortype Video::stopRecording()
 
 void Video::setDisplayPosition(bool videoOnRight)
 {
-	displayWindowXOff = videoOnRight ? 200 : 0;
+	displayWindowXOff = 0;
 	displayWindowYOff = 0;
 
 	/* Update the window size and position */
@@ -396,7 +415,8 @@ void Video::setDisplayPosition(bool videoOnRight)
 		QDBusError err = reply.error();
 		fprintf(stderr, "Failed to configure horizontal offset: %s - %s\n", err.name().data(), err.message().toAscii().data());
 	}
-	kill (pid, SIGHUP);
+	// comment this out for debugging
+    kill (pid, SIGHUP);
 }
 
 void Video::sof(const QVariantMap &args)
@@ -430,11 +450,10 @@ Video::Video() : QWidget(NULL),
 	text = new QLabel(this);
 
 	/* Default video geometry */
-	displayWindowXSize = 600;
+	displayWindowXSize = 800;
 	displayWindowYSize = 480;
 	displayWindowXOff = 0;
 	displayWindowYOff = 0;
-	displayVideoZoom = false;
 
 	pthread_mutex_init(&mutex, NULL);
 
@@ -447,6 +466,7 @@ Video::Video() : QWidget(NULL),
 				 "segment", this, SLOT(segment(const QVariantMap&)));
 
 	/* Try to get the PID of the video pipeline. */
+	// comment this out for debugging
 	checkpid();
 
 	/* Update the window size and position */
@@ -463,34 +483,6 @@ Video::Video() : QWidget(NULL),
 	setAutoFillBackground(true);
 	setPalette(bgColor);
 	show();
-
-	/* Start the click timer */
-	clickTimer.start();
-	clickX = clickY = 0;
-}
-
-void Video::mousePressEvent(QMouseEvent *ev)
-{
-	/* Gather the time and distance between clicks */
-	int dx = clickX - ev->x();
-	int dy = clickY - ev->y();
-	int dsq = (dx * dx) + (dy * dy);
-	int delay = clickTimer.restart();
-	clickX = ev->x();
-	clickY = ev->y();
-
-	/* If the distance is less than 32px, and time is less than 400ms, it's a doubleclick */
-	if ((dsq < (32*32)) && (delay < 400)) {
-		if (displayVideoZoom) {
-			setZoom(1.0);
-			setStatusText("");
-			displayVideoZoom = false;
-		} else {
-			setZoom(2.5);
-			setStatusText("Video zoom at 2.5x, doubletap to clear");
-			displayVideoZoom = true;
-		}
-	}
 }
 
 void Video::setStatusText(const QString &value)

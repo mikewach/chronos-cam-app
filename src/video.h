@@ -102,6 +102,7 @@ public:
 	void setPosition(unsigned int position);
 	void setPlayback(int rate);
 	void loopPlayback(unsigned int start, unsigned int length, int rate);
+	void setFrameRate(int rate);
 	void setDisplayOptions(bool zebra, FocusPeakColors fpColor);
 	void setZebra(bool zebra);
 	void setZoom(double zoom);
@@ -126,6 +127,7 @@ public:
 	UInt32 profile;
 	UInt32 level;
     char liveRecFileDirectory[1000];
+	double videoZoom = 1.0;
 
 signals:
 	void started(VideoState state);
@@ -146,13 +148,6 @@ private:
 	UInt32 displayWindowYSize;
 	UInt32 displayWindowXOff;
 	UInt32 displayWindowYOff;
-	bool displayVideoZoom;
-
-	/* Doubleclick events don't really work for touch, so let's DIY */
-	void mousePressEvent(QMouseEvent *);
-	QTime clickTimer;
-	int clickX;
-	int clickY;
 
 	/* Status Text */
 	void setStatusText(const QString &value);

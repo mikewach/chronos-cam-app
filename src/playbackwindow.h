@@ -57,13 +57,22 @@ private slots:
 
 	void on_cmdMarkOut_clicked();
 
+	void on_cmdBattery_toggled();
+	void on_cmdGuides_toggled(bool checked);
+	void on_cmdGainDigital_toggled(bool checked);
+	void on_cmdFrameRate_toggled(bool checked);
+	void on_cmdToggleUI_toggled(bool checked);
+	void on_cmdZoom_clicked();
+	void on_digitalGain_valueChanged(const QVariant &value);
+	void on_videoZoom_valueChanged(const QVariant &value);
+	void toggleUI(bool en);
+	void updateBatteryData();
+	void updateSensorTemperature();
+	void updateStats();
+
 	void updatePlayFrame();
 
 	void checkForSaveDone();
-
-	void on_cmdRateUp_clicked();
-
-	void on_cmdRateDn_clicked();
 
 	void keyPressEvent(QKeyEvent *ev);
 	void on_cmdClose_clicked();
@@ -89,6 +98,7 @@ private:
 	UInt32 playFrame;
 	bool playLoop;
 	QTimer * timer;
+	QTimer * timerStats;
 	QTimer * saveDoneTimer;
 	Int32 playbackExponent;
 	bool autoSaveFlag, autoRecordFlag;
@@ -98,6 +108,14 @@ private:
 	bool insufficientFreeSpaceEstimate;
 	short periodsToAdd = 0;
 	
+	double batteryPercent = 0;
+	double batteryVoltage = 0;
+	bool batteryPresent = false;
+	bool externalPower = false;
+	ImagerSettings_t is;
+	double gainDigital = 1.0;
+	double videoZoom = 1.0;
+
 	save_mode_type getSaveFormat();
 
 	void addDotsToString(QString* abc);

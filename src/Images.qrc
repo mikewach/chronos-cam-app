@@ -34,5 +34,46 @@
         <file>assets/images/radio-button-unchecked-black.svg.png</file>
         <file>assets/images/folder_icon.png</file>
         <file>assets/images/folder_icon_up.png</file>
+
+        <file>assets/images/gain-analog-unchecked.png</file>
+        <file>assets/images/gain-analog-checked.png</file>
+        <file>assets/images/gain-digital-unchecked.png</file>
+        <file>assets/images/gain-digital-checked.png</file>
+        <file>assets/images/temperature-cold.png</file>
+        <file>assets/images/temperature-normal.png</file>
+        <file>assets/images/temperature-hot.png</file>
+        <file>assets/images/battery-100.png</file>
+        <file>assets/images/battery-100-charging.png</file>
+        <file>assets/images/battery-75.png</file>
+        <file>assets/images/battery-75-charging.png</file>
+        <file>assets/images/battery-50.png</file>
+        <file>assets/images/battery-50-charging.png</file>
+        <file>assets/images/battery-25.png</file>
+        <file>assets/images/battery-25-charging.png</file>
+        <file>assets/images/battery-0.png</file>
+        <file>assets/images/battery-0-charging.png</file>
+        <file>assets/images/battery-missing.png</file>
+
+        <file>assets/images/settings.png</file>
+        <file>assets/images/guides-unchecked.png</file>
+        <file>assets/images/guides-checked.png</file>
+        <file>assets/images/focus-aid-unchecked.png</file>
+        <file>assets/images/focus-aid-checked.png</file>
+        <file>assets/images/zebras-unchecked.png</file>
+        <file>assets/images/zebras-checked.png</file>
+        <file>assets/images/zoom-unchecked.png</file>
+        <file>assets/images/zoom-checked.png</file>
+        <file>assets/images/play.png</file>
+
+        <file>assets/images/cancel.png</file>
+        <file>assets/images/close.png</file>
+        <file>assets/images/chronometer.png</file>
+        <file>assets/images/cti.png</file>
+        <file>assets/images/frames.png</file>
+        <file>assets/images/mark-in.png</file>
+        <file>assets/images/mark-out.png</file>
+        <file>assets/images/stopwatch.png</file>
+        <file>assets/images/play-backwards.png</file>
+        <file>assets/images/play-forwards.png</file>
     </qresource>
 </RCC>
