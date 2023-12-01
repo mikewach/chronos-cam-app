@@ -416,7 +416,7 @@ void Video::setDisplayPosition(bool videoOnRight)
 		fprintf(stderr, "Failed to configure horizontal offset: %s - %s\n", err.name().data(), err.message().toAscii().data());
 	}
 	// comment this out for debugging
-    kill (pid, SIGHUP);
+    // kill (pid, SIGHUP);
 }
 
 void Video::sof(const QVariantMap &args)
@@ -467,7 +467,7 @@ Video::Video() : QWidget(NULL),
 
 	/* Try to get the PID of the video pipeline. */
 	// comment this out for debugging
-	checkpid();
+	// checkpid();
 
 	/* Update the window size and position */
 	setGeometry(displayWindowXOff, displayWindowYOff, displayWindowXSize, displayWindowYSize);

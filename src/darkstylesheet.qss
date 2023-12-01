@@ -43,7 +43,7 @@ QDialog > QPushButton:disabled
 
 #CamMainWindow QPushButton
 {
-    background-color: rgba(0, 0, 0, 255);
+    background-color: rgb(0, 0, 0);
     border: none;
     border-radius: 24px;
     color: #fff;
@@ -56,23 +56,40 @@ QDialog > QPushButton:disabled
 #CamMainWindow #cmdGainAnalog,
 #CamMainWindow #cmdGainDigital,
 #CamMainWindow #cmdTemperature,
-#CamMainWindow #cmdBattery
+#CamMainWindow #cmdBattery,
+#CamMainWindow #cmdColorMatrix,
+#CamMainWindow #cmdWbTemperature,
+#CamMainWindow #cmdWbRed,
+#CamMainWindow #cmdWbGreen,
+#CamMainWindow #cmdWbBlue
 {
     border-radius: 16px;
 }
+#CamMainWindow #cmdWbRed { background-color: rgb(128, 0, 0); }
+#CamMainWindow #cmdWbGreen { background-color: rgb(0, 128, 0); }
+#CamMainWindow #cmdWbBlue { background-color: rgb(0, 0, 128); }
+#CamMainWindow #cmdWbRed:pressed { background-color: rgb(64, 0, 0); }
+#CamMainWindow #cmdWbGreen:pressed { background-color: rgb(0, 64, 0); }
+#CamMainWindow #cmdWbBlue:pressed { background-color: rgb(0, 0, 64); }
 #CamMainWindow QPushButton:pressed
 {
     background-color: rgba(0, 0, 0, 128);
 }
+#CamMainWindow #cmdWbRed:checked,
+#CamMainWindow #cmdWbGreen:checked,
+#CamMainWindow #cmdWbBlue:checked,
 #CamMainWindow QPushButton:checked {
-    background-color: rgba(255, 255, 255, 255);
+    background-color: rgb(255, 255, 255);
     color: #000;
 }
+#CamMainWindow #cmdWbRed:checked:pressed,
+#CamMainWindow #cmdWbGreen:checked:pressed,
+#CamMainWindow #cmdWbBlue:checked:pressed,
 #CamMainWindow QPushButton:checked:pressed {
     background-color: rgba(255, 255, 255, 128);
 }
 #CamMainWindow #cmdBattery:checked {
-    background-color: rgba(0, 0, 0, 255);
+    background-color: rgb(0, 0, 0);
     color: #fff;
 }
 #CamMainWindow #cmdBattery:checked:pressed {
@@ -90,6 +107,7 @@ QDialog > QPushButton:disabled
 #CamMainWindow #cmdFocusAid:checked { image: url(:/qss/assets/images/focus-aid-checked.png); }
 #CamMainWindow #cmdZebras { image: url(:/qss/assets/images/zebras-unchecked.png); }
 #CamMainWindow #cmdZebras:checked { image: url(:/qss/assets/images/zebras-checked.png); }
+#CamMainWindow #cmdBacklight { image: url(:/qss/assets/images/backlight.png); }
 #CamMainWindow #cmdFPNCal:flat { background: #f00; }
 /*
 #CamMainWindow #cmdZoom { image: url(:/qss/assets/images/zoom-unchecked.png); }

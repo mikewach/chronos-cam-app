@@ -34,6 +34,7 @@
 #include "ui_cammainwindow.h"
 #include "util.h"
 #include "whitebalancedialog.h"
+#include "QsKineticScroller.h"
 
 #include <time.h>
 #include <sys/types.h>
@@ -83,7 +84,10 @@ CamMainWindow::CamMainWindow(QWidget *parent) : QDialog(parent),
 		nanosleep(&t, NULL);
 	}
 
-	batteryPercent = 0;
+    QsKineticScroller *scroller = new QsKineticScroller(this);
+    scroller->enableKineticScrollFor(ui->scrollArea, true);
+
+    batteryPercent = 0;
 	batteryVoltage = 0;
 	batteryPresent = false;
 	externalPower = false;
@@ -112,6 +116,11 @@ CamMainWindow::CamMainWindow(QWidget *parent) : QDialog(parent),
 	{
 		ui->cmdWB->setEnabled(true);
 		on_wbTemperature_valueChanged(camera->cinst->getProperty("wbTemperature"));
+		double wbMatrix[3];
+		camera->cinst->getArray("wbColor", 3, wbMatrix);
+		ui->cmdWbRed->setText(QString::number(wbMatrix[0]));
+		ui->cmdWbGreen->setText(QString::number(wbMatrix[1]));
+		ui->cmdWbBlue->setText(QString::number(wbMatrix[2]));
 	}
 	else
 	{
@@ -142,6 +151,7 @@ CamMainWindow::CamMainWindow(QWidget *parent) : QDialog(parent),
 	}
 
 	// TODO
+	on_cmdColor_toggled(false);
 	ui->expSlider->setVisible(false);
 	ui->cmdIOSettings->setVisible(false);
 	ui->guides->setVisible(false);
@@ -445,18 +455,26 @@ void CamMainWindow::on_focusPeakingLevel_valueChanged(const QVariant &value)
 
 void CamMainWindow::on_wbTemperature_valueChanged(const QVariant &value)
 {
-	int wbTempK = value.toInt();
+	requestedWbTemperature = value.toInt();
 
 	if (!ui->cmdWB->isEnabled())
 		return; /* Do nothing on monochrome cameras */
-	if (wbTempK > 0)
+	if (requestedWbTemperature > 0)
 	{
-		ui->cmdWB->setText(QString("%1\xb0K").arg(wbTempK));
+		ui->cmdWB->setText(QString("%1\xb0K").arg(requestedWbTemperature));
+		ui->cmdWbTemperature->setText(QString("%1\xb0K").arg(requestedWbTemperature));
 	}
 	else
 	{
 		ui->cmdWB->setText("Custom");
+		ui->cmdWbTemperature->setText("Custom");
 	}
+
+	double wbMatrix[3];
+	camera->cinst->getArray("wbColor", 3, wbMatrix);
+	ui->cmdWbRed->setText(QString::number(wbMatrix[0]));
+	ui->cmdWbGreen->setText(QString::number(wbMatrix[1]));
+	ui->cmdWbBlue->setText(QString::number(wbMatrix[2]));
 }
 
 void CamMainWindow::on_videoZoom_valueChanged(const QVariant &value)
@@ -902,6 +920,30 @@ void CamMainWindow::on_newVideoSegment(VideoStatus *st)
 	}
 }
 
+void CamMainWindow::on_cmdColor_toggled(bool checked)
+{
+	ui->horizontalLayoutWidget_Color->setVisible(checked);
+	ui->horizontalLayoutWidget_Top->setVisible(!checked);
+	// ui->cmdColorMatrix->setVisible(checked);
+	// ui->cmdWbTemperature->setVisible(checked);
+	// ui->cmdWbRed->setVisible(checked);
+	// ui->cmdWbGreen->setVisible(checked);
+	// ui->cmdWbBlue->setVisible(checked);
+	if (!checked)
+	{
+		ui->cmdWbTemperature->setChecked(false);
+		ui->cmdWbRed->setChecked(false);
+		ui->cmdWbGreen->setChecked(false);
+		ui->cmdWbBlue->setChecked(false);
+	}
+}
+
+void CamMainWindow::on_cmdTemperature_toggled(bool checked)
+{
+	/* 33% seems to be the slowest we can spin the fan without stopping it */
+	camera->cinst->setFloat("fanOverride", checked ? 0.33 : -1);
+}
+
 void CamMainWindow::on_cmdBattery_toggled()
 {
 	updateBatteryData();
@@ -952,8 +994,23 @@ void CamMainWindow::on_cmdGuides_toggled(bool checked)
 	ui->guides->setVisible(checked);
 }
 
+void CamMainWindow::on_cmdBacklight_toggled(bool checked)
+{
+	if(checked)
+	{
+		ui->cmdToggleUI->setChecked(false);
+		toggleUI(false);
+	}
+	camera->cinst->setBool("backlightEnabled", !checked);
+}
+
 void CamMainWindow::on_cmdToggleUI_toggled(bool checked)
 {
+	if(checked)
+	{
+		ui->cmdBacklight->setChecked(false);
+		on_cmdBacklight_toggled(false);
+	}
 	toggleUI(checked);
 }
 
@@ -1466,22 +1523,53 @@ void CamMainWindow::keyPressEvent(QKeyEvent *ev)
 	{
 		switch (ev->key())
 		{
-		case Qt::Key_Up:
-		case Qt::Key_PageUp:
-			if (requestedGainDigital <= 16)
-			{
-				requestedGainDigital+=0.1;
-			}
-			break;
-		case Qt::Key_Down:
-		case Qt::Key_PageDown:
-			if (requestedGainDigital > 1)
-			{
-				requestedGainDigital-=0.1;
-			}
-			break;
+			case Qt::Key_Up:
+			case Qt::Key_PageUp:
+				if (requestedGainDigital <= 16)
+				{
+					requestedGainDigital+=0.1;
+				}
+				break;
+			case Qt::Key_Down:
+			case Qt::Key_PageDown:
+				if (requestedGainDigital > 1)
+				{
+					requestedGainDigital-=0.1;
+				}
+				break;
 		}
 		camera->cinst->setProperty("digitalGain", requestedGainDigital);
+	}
+	else if (ui->cmdWbTemperature->isChecked())
+	{
+		switch (ev->key())
+		{
+			case Qt::Key_Up:
+				// if (requestedWbTemperature <= 16)
+				// {
+					requestedWbTemperature+=100;
+				// }
+				break;
+			case Qt::Key_PageUp:
+				// if (requestedWbTemperature <= 16)
+				// {
+					requestedWbTemperature+=1;
+				// }
+				break;
+			case Qt::Key_Down:
+				if (requestedWbTemperature > 1)
+				{
+					requestedWbTemperature-=100;
+				}
+				break;
+			case Qt::Key_PageDown:
+				if (requestedWbTemperature > 1)
+				{
+					requestedWbTemperature-=1;
+				}
+				break;
+		}
+		camera->cinst->setProperty("wbTemperature", requestedWbTemperature);
 	}
 }
 
@@ -1499,31 +1587,25 @@ void CamMainWindow::buttonsEnabled(bool en)
 
 void CamMainWindow::toggleUI(bool en)
 {
-	// top
-	ui->cmdRecSettings->setVisible(en);
-	ui->cmdFrameRate->setVisible(en);
-	ui->cmdExposure->setVisible(en);
-	ui->cmdGainAnalog->setVisible(en);
-	ui->cmdGainDigital->setVisible(en);
-	ui->cmdTemperature->setVisible(en);
-	ui->cmdBattery->setVisible(en);
-	// bottom
-	ui->cmdUtil->setVisible(en);
-	ui->cmdGuides->setVisible(en);
-	ui->cmdFocusAid->setVisible(en);
-	ui->cmdZebras->setVisible(en);
-	ui->cmdZoom->setVisible(en);
-	ui->cmdWB->setVisible(en);
-	ui->cmdFPNCal->setVisible(en);
-	ui->cmdPlay->setVisible(en);
-	ui->cmdRec->setVisible(en);
-
 	if (!en)
 	{
 		ui->cmdExposure->setChecked(false);
 		ui->cmdGainAnalog->setChecked(false);
 		ui->cmdGainDigital->setChecked(false);
+		ui->cmdColor->setChecked(false);
+		ui->cmdWbTemperature->setChecked(false);
+		ui->cmdWbRed->setChecked(false);
+		ui->cmdWbGreen->setChecked(false);
+		ui->cmdWbBlue->setChecked(false);
 	}
+
+	// top
+	ui->horizontalLayoutWidget_Top->setVisible(en);
+
+	// bottom
+	ui->horizontalLayoutWidget_Bottom->setVisible(en);
+	ui->cmdPlay->setVisible(en);
+	ui->cmdRec->setVisible(en);
 
 	// QCoreApplication::processEvents();
 }

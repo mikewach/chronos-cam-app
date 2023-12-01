@@ -67,10 +67,12 @@ private slots:
 	void on_newVideoSegment(VideoStatus *st);
 
 	void on_cmdBattery_toggled();
-
+	void on_cmdTemperature_toggled(bool checked);
 	void on_cmdExposure_toggled(bool checked);
 	void on_cmdGainAnalog_toggled(bool checked);
 	void on_cmdGainDigital_toggled(bool checked);
+	void on_cmdColor_toggled(bool checked);
+	void on_cmdBacklight_toggled(bool checked);
 
 	void on_cmdGuides_toggled(bool checked);
 
@@ -147,6 +149,7 @@ private:
 	bool requestedGuides = false;
 	int requestedGainAnalog;
 	double requestedGainDigital;
+	int requestedWbTemperature;
 	int calibrationTemp = 0;
 
 	bool autoSaveActive;
